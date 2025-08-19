@@ -1,8 +1,5 @@
-// src/components/CategoryList.jsx or CategoryList.tsx
-
 import React from 'react';
 
-// Define the type for props if you are using TypeScript
 interface CategoryListProps {
   categories: string[];
   onSelectCategory: (category: string | null) => void;

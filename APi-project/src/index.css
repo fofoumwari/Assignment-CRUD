@@ -1,4 +1,12 @@
-/* index.css */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme{
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --color-primaryColor-50: oklch(0.7 0.1 188);
+  --color-secondaryColor-50: oklch(0.8568 0.0447 185.73);
+
+
+}
