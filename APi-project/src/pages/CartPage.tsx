@@ -16,7 +16,7 @@ export default function CartPage() {
               <img src={item.thumbnail} alt={item.title} className="w-20 h-20 object-cover" />
               <div className="flex-1">
                 <h3 className="font-bold">{item.title}</h3>
-                <p>${item.price} × {item.quantity} = ${item.total}</p>
+                <p>${item.price} × {item.quantity} = ${item.price * item.quantity}</p>
               </div>
               <button onClick={() => removeFromCart(item.id)} className="text-red-600">
                 Remove

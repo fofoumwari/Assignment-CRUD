@@ -72,6 +72,7 @@ export interface CartItem {
   price: number;
   quantity: number;
   name: string;
+  total?:number;
 }
 
 
