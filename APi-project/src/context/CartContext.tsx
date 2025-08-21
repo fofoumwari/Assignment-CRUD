@@ -1,11 +1,10 @@
 import React, { createContext, useContext, useReducer } from 'react';
-import type {ReactNode} from 'react';
+import type{ ReactNode } from 'react';
 import type { CartItem, Product } from '../types/product';
 import axios from 'axios';
 
 interface CartState {
   cartItems: CartItem[];
-  cartId: number | null;
 }
 
 type CartAction =
@@ -13,7 +12,7 @@ type CartAction =
   | { type: 'REMOVE_FROM_CART'; payload: number }
   | { type: 'UPDATE_QUANTITY'; payload: { id: number; quantity: number } }
   | { type: 'CLEAR_CART' }
-  | { type: 'SET_CART'; payload: { items: CartItem[]; cartId: number } };
+  | { type: 'SET_CART'; payload: CartItem[] };
 
 interface CartContextType {
   cartItems: CartItem[];
@@ -27,9 +26,8 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
-// DummyJSON Cart API endpoints
-const API_BASE = 'https://dummyjson.com/carts';
-const USER_ID = 1; // You can get this from auth context
+// Using DummyJSON's cart API
+const API_URL = 'https://dummyjson.com/carts/add';
 
 function cartReducer(state: CartState, action: CartAction): CartState {
   switch (action.type) {
@@ -75,8 +73,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
     case 'SET_CART':
       return {
         ...state,
-        cartItems: action.payload.items,
-        cartId: action.payload.cartId
+        cartItems: action.payload
       };
 
     default:
@@ -85,143 +82,116 @@ function cartReducer(state: CartState, action: CartAction): CartState {
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(cartReducer, { 
-    cartItems: [], 
-    cartId: null 
-  });
-
-  // Get or create user cart
-  const getOrCreateCart = async (): Promise<number> => {
-    if (state.cartId) return state.cartId;
-
-    try {
-      // Try to get user's existing cart
-      const response = await axios.get(`${API_BASE}/user/${USER_ID}`);
-      const userCarts = response.data.carts;
-      
-      if (userCarts && userCarts.length > 0) {
-        const latestCart = userCarts[userCarts.length - 1];
-        dispatch({ 
-          type: 'SET_CART', 
-          payload: { 
-            items: latestCart.products, 
-            cartId: latestCart.id 
-          } 
-        });
-        return latestCart.id;
-      }
-    } catch (error) {
-      console.log('No existing cart found, creating new one');
-    }
-
-    // Create new cart if none exists
-    try {
-      const response = await axios.post(`${API_BASE}/add`, {
-        userId: USER_ID,
-        products: []
-      });
-      
-      dispatch({ 
-        type: 'SET_CART', 
-        payload: { 
-          items: [], 
-          cartId: response.data.id 
-        } 
-      });
-      return response.data.id;
-    } catch (error) {
-      console.error('Failed to create cart:', error);
-      throw error;
-    }
-  };
+  const [state, dispatch] = useReducer(cartReducer, { cartItems: [] });
 
   const addToCart = async (product: Product) => {
     try {
-      const cartId = await getOrCreateCart();
-      
-      // Update server first
-      const response = await axios.put(`${API_BASE}/${cartId}`, {
-        merge: false, // Set to true if you want to merge quantities
-        products: [
-          ...state.cartItems,
-          { id: product.id, quantity: 1 }
-        ]
-      });
-
-      // Then update local state
+      // First update UI immediately for better UX
       dispatch({ type: 'ADD_TO_CART', payload: product });
       
+      // Then send request to server with the correct format
+      const response = await axios.post(API_URL, {
+        userId: 1, // DummyJSON requires a userId
+        products: [
+          {
+            id: product.id,
+            quantity: 1,
+            // DummyJSON might expect these additional fields
+            title: product.title,
+            price: product.price,
+          }
+        ]
+      }, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
       console.log('Server response for add to cart:', response.data);
-    } catch (error) {
+      
+    } catch (error: any) {
       console.error('Failed to add to cart:', error);
-      throw error;
+      
+      // Revert local state on error
+      dispatch({ type: 'REMOVE_FROM_CART', payload: product.id });
+      
+      // Provide more specific error message
+      if (error.response) {
+        console.error('Server responded with:', error.response.status, error.response.data);
+        throw new Error(`Server error: ${error.response.status} - ${JSON.stringify(error.response.data)}`);
+      } else {
+        throw new Error('Network error: Could not connect to the server');
+      }
     }
   };
 
   const removeFromCart = async (id: number) => {
     try {
-      if (!state.cartId) return;
-      
-      // Update server first
-      const updatedProducts = state.cartItems
-        .filter(item => item.id !== id)
-        .map(item => ({ id: item.id, quantity: item.quantity }));
-      
-      const response = await axios.put(`${API_BASE}/${state.cartId}`, {
-        products: updatedProducts
-      });
-
-      // Then update local state
+      // First update UI immediately
       dispatch({ type: 'REMOVE_FROM_CART', payload: id });
       
+      // For remove operations, we might need to use a different endpoint
+      // DummyJSON doesn't have a direct remove endpoint, so we'll update the entire cart
+      const response = await axios.post(API_URL, {
+        userId: 1,
+        products: state.cartItems
+          .filter(item => item.id !== id)
+          .map(item => ({
+            id: item.id,
+            quantity: item.quantity,
+            title: item.title,
+            price: item.price,
+          }))
+      });
+
       console.log('Server response for remove from cart:', response.data);
-    } catch (error) {
+      
+    } catch (error: any) {
       console.error('Failed to remove from cart:', error);
-      throw error;
+      throw new Error('Failed to remove item from cart');
     }
   };
 
   const updateQuantity = async (id: number, quantity: number) => {
     try {
-      if (!state.cartId) return;
-      
-      // Update server first
-      const updatedProducts = state.cartItems.map(item =>
-        item.id === id
-          ? { id: item.id, quantity: quantity }
-          : { id: item.id, quantity: item.quantity }
-      );
-      
-      const response = await axios.put(`${API_BASE}/${state.cartId}`, {
-        products: updatedProducts
-      });
-
-      // Then update local state
+      // First update UI immediately
       dispatch({ type: 'UPDATE_QUANTITY', payload: { id, quantity } });
       
+      // Update the entire cart on the server
+      const response = await axios.post(API_URL, {
+        userId: 1,
+        products: state.cartItems.map(item => ({
+          id: item.id,
+          quantity: item.id === id ? quantity : item.quantity,
+          title: item.title,
+          price: item.price,
+        }))
+      });
+
       console.log('Server response for update quantity:', response.data);
-    } catch (error) {
+      
+    } catch (error: any) {
       console.error('Failed to update quantity:', error);
-      throw error;
+      throw new Error('Failed to update quantity');
     }
   };
 
   const clearCart = async () => {
     try {
-      if (!state.cartId) return;
+      // First update UI immediately
+      dispatch({ type: 'CLEAR_CART' });
       
-      // Update server first
-      const response = await axios.put(`${API_BASE}/${state.cartId}`, {
+      // Send empty cart to server
+      const response = await axios.post(API_URL, {
+        userId: 1,
         products: []
       });
 
-      // Then update local state
-      dispatch({ type: 'CLEAR_CART' });
-      
       console.log('Server response for clear cart:', response.data);
-    } catch (error) {
+      
+    } catch (error: any) {
       console.error('Failed to clear cart:', error);
-      throw error;
+      throw new Error('Failed to clear cart');
     }
   };
 
@@ -232,31 +202,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const getCartItemsCount = () => {
     return state.cartItems.reduce((count, item) => count + item.quantity, 0);
   };
-
-  // Load user cart on initial render
-  React.useEffect(() => {
-    const loadUserCart = async () => {
-      try {
-        const response = await axios.get(`${API_BASE}/user/${USER_ID}`);
-        const userCarts = response.data.carts;
-        
-        if (userCarts && userCarts.length > 0) {
-          const latestCart = userCarts[userCarts.length - 1];
-          dispatch({ 
-            type: 'SET_CART', 
-            payload: { 
-              items: latestCart.products, 
-              cartId: latestCart.id 
-            } 
-          });
-        }
-      } catch (error) {
-        console.log('No existing cart found');
-      }
-    };
-
-    loadUserCart();
-  }, []);
 
   return (
     <CartContext.Provider

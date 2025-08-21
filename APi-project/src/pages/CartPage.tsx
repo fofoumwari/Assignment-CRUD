@@ -108,9 +108,9 @@ export default function CartPage() {
               >
                 Continue Shopping
               </Link>
-              <button className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors">
+              {/* <button className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors">
                 Proceed to Checkout
-              </button>
+              </button> */}
             </div>
           </div>
         </>
