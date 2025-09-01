@@ -115,7 +115,7 @@ export default function ProductsPage() {
   // Fetch all products
   const fetchAllProducts = async () => {
     try {
-      const response = await axios.get<ProductsResponse>('https://dummyjson.com/products?limit=100');
+      const response = await axios.get<ProductsResponse>('https://dummyjson.com/products');
       return response.data.products;
     } catch (err) {
       console.error('Failed to fetch all products:', err);
@@ -150,20 +150,30 @@ export default function ProductsPage() {
     fetchProducts();
   }, [selectedCategory]);
 
-  // Filter products based on search query
-  useEffect(() => {
-    let filtered = products;
-    
-    if (searchQuery) {
-      filtered = filtered.filter(product =>
-        product.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.category.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+  // 🔍 Search handler (calls DummyJSON API)
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query);
+    if (!query) {
+      const productsData = await fetchAllProducts();
+      setProducts(productsData);
+      setFilteredProducts(productsData);
+      return;
     }
-    
-    setFilteredProducts(filtered);
-  }, [searchQuery, products]);
+
+    try {
+      setLoading(true);
+      const response = await axios.get<ProductsResponse>(
+        `https://dummyjson.com/products/search?q=${encodeURIComponent(query)}`
+      );
+      setProducts(response.data.products);
+      setFilteredProducts(response.data.products);
+    } catch (err) {
+      console.error("Search failed:", err);
+      setError("Failed to search products. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Update selected category when URL param changes
   useEffect(() => {
@@ -235,12 +245,6 @@ export default function ProductsPage() {
         
         <div className="flex items-center gap-4">
           <button
-            onClick={() => navigate("/categories")}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm"
-          >
-            Browse Categories
-          </button>
-          <button
             onClick={() => navigate("/cart")}
             className="relative bg-white p-2 sm:p-3 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
           >
@@ -256,7 +260,7 @@ export default function ProductsPage() {
 
       {/* Search and Category Filter */}
       <div className="mb-6 space-y-4">
-        <SearchBar onSearch={setSearchQuery} />
+        <SearchBar onSearch={handleSearch} />
         
         {selectedCategory && (
           <div className="flex items-center gap-2">

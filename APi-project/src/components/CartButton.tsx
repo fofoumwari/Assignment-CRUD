@@ -2,7 +2,7 @@
 
 
 // export default function CreateCartButton() {
-//   const { addCart } = useCart();
+//   const { addToCart } = useCart();
 
 //   const handleCreateCart = async () => {
 //     try {
@@ -20,7 +20,7 @@
 //       });
 
 //       const newCart = await res.json();
-//       addCart(newCart); // ✅ update context immediately
+//       addToCart(newCart); // ✅ update context immediately
 //     } catch (err) {
 //       console.error("Error creating cart:", err);
 //     }
